@@ -116,7 +116,7 @@ body {
   padding: 3px 6px;
   margin-top: 3px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   overflow: hidden;
   cursor: grab;
@@ -132,13 +132,51 @@ body {
 
 .ev-inner {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 1px;
   overflow: hidden;
   flex: 1;
 }
-.ev-inner span.time { font-weight: 700; flex-shrink: 0; }
-.ev-inner span.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-inner span.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.ev-note-body {
+  font-style: italic;
+  opacity: 0.75;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.2s ease;
+  opacity: 0;
+  margin-top: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ev-note-body.open {
+  max-height: 120px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+.ev-note-btn {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  opacity: 0.5;
+  margin-top: 1px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  color: inherit;
+  transition: opacity 0.15s, transform 0.2s;
+}
+.ev-note-btn:hover { opacity: 1; }
+.ev-note-btn.open { transform: rotate(180deg); opacity: 0.8; }
 
 .ev-del {
   flex-shrink: 0;
@@ -146,6 +184,7 @@ body {
   font-size: 11px;
   line-height: 1;
   opacity: 0.6;
+  margin-top: 1px;
 }
 .ev-del:hover { opacity: 1; color: #991b1b !important; }
 
@@ -184,7 +223,7 @@ body {
 }
 .modal h3 { font-size: 15px; font-weight: 500; margin-bottom: 14px; color: #18181b; }
 .modal label { font-size: 12px; color: #71717a; display: block; margin-bottom: 4px; }
-.modal input {
+.modal input, .modal textarea {
   width: 100%;
   padding: 9px 12px;
   border-radius: 8px;
@@ -197,7 +236,12 @@ body {
   font-family: inherit;
   transition: border-color 0.15s;
 }
-.modal input:focus { border-color: #18181b; }
+.modal input:focus, .modal textarea:focus { border-color: #18181b; }
+.modal textarea {
+  resize: none;
+  height: 68px;
+  line-height: 1.5;
+}
 
 .cat-picker {
   display: flex;
@@ -264,8 +308,8 @@ body {
     <h3 id="modalTitle">Ajouter une entrée</h3>
     <label>Description</label>
     <input id="evInput" placeholder="Décris l'événement…" onkeydown="if(event.key==='Enter')saveEvent()">
-    <label>Horaire <span style="color:#a1a1aa;font-weight:400">(optionnel)</span></label>
-    <input id="evTime" type="time" style="margin-bottom:12px;">
+    <label>Note <span style="color:#a1a1aa;font-weight:400">(optionnelle)</span></label>
+    <textarea id="evNote" placeholder="Ajoute un contexte, une réflexion…"></textarea>
     <label>Catégorie</label>
     <div class="cat-picker">
       <button class="cat-btn c-neutral selected"   onclick="selectCat('neutral')"   id="c-neutral">Neutre</button>
@@ -285,8 +329,8 @@ body {
     <h3>Modifier l'entrée</h3>
     <label>Description</label>
     <input id="editEvInput" placeholder="Décris l'événement…">
-    <label>Horaire <span style="color:#a1a1aa;font-weight:400">(optionnel)</span></label>
-    <input id="editEvTime" type="time" style="margin-bottom:12px;">
+    <label>Note <span style="color:#a1a1aa;font-weight:400">(optionnelle)</span></label>
+    <textarea id="editEvNote" placeholder="Ajoute un contexte, une réflexion…"></textarea>
     <label>Catégorie</label>
     <div class="cat-picker">
       <button class="cat-btn c-neutral"   onclick="selectEditCat('neutral')"   id="ec-neutral">Neutre</button>
@@ -333,7 +377,9 @@ onSnapshot(doc(db, "journal", "data"), snap => {
     events = snap.data().events || {};
     Object.keys(events).forEach(k => {
       events[k] = events[k].map(e =>
-        typeof e === 'string' ? { text: e, cat: 'neutral', time: null } : e
+        typeof e === 'string'
+          ? { text: e, cat: 'neutral', note: null }
+          : { text: e.text, cat: e.cat || 'neutral', note: e.note ?? e.time ?? null }
       );
     });
   } else {
@@ -445,14 +491,36 @@ function buildCalendar() {
 
         const inner = document.createElement('span');
         inner.className = 'ev-inner';
-        if (ev.time) {
-          const t = document.createElement('span');
-          t.className = 'time'; t.textContent = ev.time;
-          inner.appendChild(t);
-        }
+
         const lbl = document.createElement('span');
         lbl.className = 'label'; lbl.textContent = ev.text;
         inner.appendChild(lbl);
+
+        if (ev.note) {
+          const noteBody = document.createElement('div');
+          noteBody.className = 'ev-note-body';
+          noteBody.textContent = ev.note;
+          inner.appendChild(noteBody);
+        }
+
+        chip.appendChild(inner);
+
+        const rightCol = document.createElement('div');
+        rightCol.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;';
+
+        if (ev.note) {
+          const noteBtn = document.createElement('button');
+          noteBtn.className = 'ev-note-btn';
+          noteBtn.textContent = '▾';
+          noteBtn.title = 'Voir la note';
+          noteBtn.onclick = e => {
+            e.stopPropagation();
+            const noteBody = inner.querySelector('.ev-note-body');
+            const isOpen = noteBody.classList.toggle('open');
+            noteBtn.classList.toggle('open', isOpen);
+          };
+          rightCol.appendChild(noteBtn);
+        }
 
         const del = document.createElement('span');
         del.className = 'ev-del'; del.textContent = '✕';
@@ -462,8 +530,9 @@ function buildCalendar() {
           if (!events[key].length) delete events[key];
           buildCalendar(); saveAll();
         };
+        rightCol.appendChild(del);
 
-        chip.appendChild(inner); chip.appendChild(del);
+        chip.appendChild(rightCol);
         div.appendChild(chip);
       });
     }
@@ -474,7 +543,7 @@ function buildCalendar() {
       e.stopPropagation();
       selDate = key;
       document.getElementById('evInput').value = '';
-      document.getElementById('evTime').value = '';
+      document.getElementById('evNote').value = '';
       selectCat('neutral');
       document.getElementById('modalTitle').textContent = 'Ajouter une entrée';
       document.getElementById('overlay').style.display = 'flex';
@@ -496,7 +565,11 @@ window.saveEvent = async function() {
   const val = document.getElementById('evInput').value.trim();
   if (!val) return;
   if (!events[selDate]) events[selDate] = [];
-  events[selDate].push({ text: val, cat: selCat, time: document.getElementById('evTime').value || null });
+  events[selDate].push({
+    text: val,
+    cat: selCat,
+    note: document.getElementById('evNote').value.trim() || null
+  });
   closeModal(); buildCalendar(); await saveAll();
 };
 
@@ -509,7 +582,7 @@ window.openEdit = function(key, idx) {
   editKey = key; editIdx = idx;
   const ev = events[key][idx];
   document.getElementById('editEvInput').value = ev.text;
-  document.getElementById('editEvTime').value = ev.time || '';
+  document.getElementById('editEvNote').value = ev.note || '';
   selectEditCat(ev.cat || 'neutral');
   document.getElementById('editOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('editEvInput').focus(), 50);
@@ -527,7 +600,7 @@ window.saveEdit = async function() {
   events[editKey][editIdx] = {
     text: val,
     cat: editCat,
-    time: document.getElementById('editEvTime').value || null
+    note: document.getElementById('editEvNote').value.trim() || null
   };
   closeEdit(); buildCalendar(); await saveAll();
 };
