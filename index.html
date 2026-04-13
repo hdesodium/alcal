@@ -492,21 +492,12 @@ function buildCalendar() {
         const inner = document.createElement('span');
         inner.className = 'ev-inner';
 
+        const labelRow = document.createElement('span');
+        labelRow.style.cssText = 'display:flex;align-items:center;gap:3px;overflow:hidden;';
+
         const lbl = document.createElement('span');
         lbl.className = 'label'; lbl.textContent = ev.text;
-        inner.appendChild(lbl);
-
-        if (ev.note) {
-          const noteBody = document.createElement('div');
-          noteBody.className = 'ev-note-body';
-          noteBody.textContent = ev.note;
-          inner.appendChild(noteBody);
-        }
-
-        chip.appendChild(inner);
-
-        const rightCol = document.createElement('div');
-        rightCol.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;';
+        labelRow.appendChild(lbl);
 
         if (ev.note) {
           const noteBtn = document.createElement('button');
@@ -519,8 +510,18 @@ function buildCalendar() {
             const isOpen = noteBody.classList.toggle('open');
             noteBtn.classList.toggle('open', isOpen);
           };
-          rightCol.appendChild(noteBtn);
+          labelRow.appendChild(noteBtn);
+
+          const noteBody = document.createElement('div');
+          noteBody.className = 'ev-note-body';
+          noteBody.textContent = ev.note;
+          inner.appendChild(labelRow);
+          inner.appendChild(noteBody);
+        } else {
+          inner.appendChild(labelRow);
         }
+
+        chip.appendChild(inner);
 
         const del = document.createElement('span');
         del.className = 'ev-del'; del.textContent = '✕';
@@ -530,9 +531,7 @@ function buildCalendar() {
           if (!events[key].length) delete events[key];
           buildCalendar(); saveAll();
         };
-        rightCol.appendChild(del);
-
-        chip.appendChild(rightCol);
+        chip.appendChild(del);
         div.appendChild(chip);
       });
     }
